@@ -31,10 +31,11 @@ palette = [
 
 
 class Camera(object):
+    # Use http://www.mandarintools.com/chardict_u8.html for inspiration.
     char_map = defaultdict(lambda: u'??', {
         ENTITIES.empty.index: u'  ',
         ENTITIES.wall.index: ('wall', u'##'),
-        ENTITIES.player.index: ('player', u'文'),
+        ENTITIES.player.index: ('player', u'子'),  # 'Offspring'. Or 孤 'Orphan'?
     })
 
     def __init__(self, block, focus):
