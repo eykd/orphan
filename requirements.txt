@@ -1,0 +1,6 @@
+urwid
+numpy
+blinker
+enum
+appdirs
+path.py
