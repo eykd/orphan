@@ -50,7 +50,8 @@ class Camera(object):
             max(center_row - (rows // 2), 0),
             max_row - rows)
         origin_col = min(
-            max(center_col - (columns // 2), 0),
+            # Displayed columns are double-wide
+            max(center_col - (columns // 4), 0),
             max_col - columns)
 
         logger.debug('Camera: center c/r (%s, %s), origin c/r (%s, %s)',
@@ -63,6 +64,7 @@ class Camera(object):
         rendered_rows = []
         for row in xrange(origin_row, (origin_row + rows)):
             row_text = []
+            # Displayed columns are double-wide
             for col in xrange(origin_col, (origin_col + (columns // 2))):
                 row_text.append(char_map[block[row, col]])
             rendered_rows.append(
