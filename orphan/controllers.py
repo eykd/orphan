@@ -8,6 +8,7 @@ import urwid
 from . import views
 from . import models
 from . import signals
+from . import agents
 
 
 class PlayerCommandMap(urwid.CommandMap):
@@ -35,7 +36,7 @@ class Player(object):
         self._dispatch_key = dispatch_key
 
 
-class Director(object):
+class Director(agents.Agent):
     def run(self):
         logger.info('Director starting up.')
         block = models.Block(1000, 1000)
@@ -55,10 +56,22 @@ class Director(object):
             field._invalidate()
 
             if key in 'qQxX' or key == 'esc':
-                logger.info('Directory quitting.')
+                logger.info('Director quitting.')
                 raise urwid.ExitMainLoop()
 
         self.loop = urwid.MainLoop(
             frame, views.palette, screen,
             unhandled_input=unhandled)
+
+        iterator = iter(self)
+
+        def schedule(loop, data):
+            try:
+                iterator.next()
+            except StopIteration:
+                return
+            else:
+                loop.set_alarm_in(0.01, schedule)
+            
+        self.loop.set_alarm_in(0.01, schedule)
         self.loop.run()

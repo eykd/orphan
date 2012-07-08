@@ -1,6 +1,7 @@
 urwid
 numpy
 blinker
+-e git+git@github.com:eykd/owyl.git#egg=owyl
 enum
 appdirs
 path.py

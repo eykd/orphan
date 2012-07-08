@@ -80,6 +80,7 @@ class PlayField(urwid.BoxWidget):
         super(PlayField, self).__init__()
         self.player = player
         self.camera = Camera(block, player)
+        self.last_render = None
 
     def selectable(self):
         return False
