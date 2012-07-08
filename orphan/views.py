@@ -31,9 +31,9 @@ palette = [
 
 
 class Camera(object):
-    char_map = defaultdict(lambda: u'?', {
-        ENTITIES.empty.index: u' ',
-        ENTITIES.wall.index: ('wall', u'#'),
+    char_map = defaultdict(lambda: u'??', {
+        ENTITIES.empty.index: u'  ',
+        ENTITIES.wall.index: ('wall', u'##'),
         ENTITIES.player.index: ('player', u'文'),
     })
 
@@ -63,13 +63,12 @@ class Camera(object):
         rendered_rows = []
         for row in xrange(origin_row, (origin_row + rows)):
             row_text = []
-            for col in xrange(origin_col, (origin_col + columns)):
+            for col in xrange(origin_col, (origin_col + (columns // 2))):
                 row_text.append(char_map[block[row, col]])
             rendered_rows.append(
                 (Text(row_text).render((columns,)), None, None)
                 )
         canvas = urwid.CanvasCombine(rendered_rows)
-        canvas.trim_end(1)
         return canvas
 
 

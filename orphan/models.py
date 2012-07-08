@@ -26,8 +26,8 @@ class Layer(object):
 class Block(collections.Mapping):
     def __init__(self, height, width):
         self.shape = (height, width)
-        # self.occupancy = numpy.random.random_integers(0, 1, (height, width))
-        self.occupancy = numpy.zeros((height, width), dtype=int)
+        self.occupancy = numpy.random.random_integers(0, 1, (height, width))
+        # self.occupancy = numpy.zeros((height, width), dtype=int)
         self.identity = numpy.zeros((height, width), dtype=int)
         self.entities = collections.defaultdict(lambda: None)
 
@@ -62,6 +62,7 @@ class Block(collections.Mapping):
             return False
 
     def occupied(self, (y, x)):
+        return False
         return self.occupancy[y, x] > 0
 
     def whoIsAt(self, (y, x)):
