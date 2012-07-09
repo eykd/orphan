@@ -6,11 +6,12 @@ import logging
 logging.basicConfig(filename='debug.log', level=logging.DEBUG)
 
 from orphan import controllers
+from orphan import scenes
 
 
 def main():
     director = controllers.Director()
-    director.run()
+    director.run(scenes.Game())
 
 
 if '__main__' == __name__:

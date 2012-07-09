@@ -30,7 +30,7 @@ palette = [
     ]
 
 
-class Camera(object):
+class PlayField(urwid.BoxWidget):
     # Use http://www.mandarintools.com/chardict_u8.html for inspiration.
     char_map = defaultdict(lambda: u'??', {
         ENTITIES.empty.index: u'  ',
@@ -39,11 +39,21 @@ class Camera(object):
     })
 
     def __init__(self, block, focus):
-        super(Camera, self).__init__()
+        super(PlayField, self).__init__()
         self.block = block
         self.focus = focus
+        self.focus = focus
+        logger.debug('Connecting to block update...')
 
-    def render(self, columns, rows):
+        self.on_block_update = lambda s: self._invalidate()
+        signals.block_update.connect(self.on_block_update,
+                                     sender=self.block)
+
+    def selectable(self):
+        return False
+
+    def render(self, size, focus=False):
+        columns, rows = size
         # Find the camera's origin
         center_row, center_col = self.focus.position
         max_row, max_col = self.block.shape
@@ -73,21 +83,6 @@ class Camera(object):
                 )
         canvas = urwid.CanvasCombine(rendered_rows)
         return canvas
-
-
-class PlayField(urwid.BoxWidget):
-    def __init__(self, block, player):
-        super(PlayField, self).__init__()
-        self.player = player
-        self.camera = Camera(block, player)
-        self.last_render = None
-
-    def selectable(self):
-        return False
-
-    def render(self, size, focus=False):
-        maxcol, maxrow = size
-        return self.camera.render(maxcol, maxrow)
 
 
 class Log(urwid.ListBox):

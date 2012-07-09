@@ -6,8 +6,6 @@ Copyright 2011 David Eyk. All rights reserved.
 from collections import deque, defaultdict
 import uuid
 
-import blinker
-
 from . import scheduler
 from . import switchboard
 
@@ -28,8 +26,7 @@ class Agent(scheduler.Scheduler):
     def __init__(self, *children, **kwargs):
         super(Agent, self).__init__()
         self.name = kwargs.get('name', uuid.uuid1().hex)
-        self.signal = blinker.signal(self.name)
-        self.switchboard[self.name] = self.signal
+        self.signal = self.switchboard[self.name]
         self.parent = kwargs.get('parent', None)
         self.addChild(*children)
 

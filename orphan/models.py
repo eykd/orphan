@@ -7,6 +7,8 @@ import collections
 import numpy
 import enum
 
+from . import signals
+
 
 ENTITIES = enum.Enum(
     'empty',
@@ -40,23 +42,30 @@ class Block(collections.Mapping):
     def __getitem__(self, (y, x)):
         return self.occupancy[y, x]
 
+    def update(self):
+        logger.debug('Updating block.')
+        signals.block_update.send(self)
+        
     def place(self, entity):
         self.entities[entity.eid] = entity
         pos_x, pos_y = entity.position
         self.occupancy[pos_y, pos_x] = entity.type_index
         self.identity[pos_y, pos_x] = entity.eid
+        self.update()
 
     def remove(self, entity):
         self.entities.pop(entity.eid)
         pos_x, pos_y = entity.position
         self.occupancy[pos_y, pos_x] = ENTITIES.empty.index
         self.identity[pos_y, pos_x] = 0
+        self.update()
 
     def move(self, entity, (pos_y, pos_x)):
         if not self.occupied((pos_y, pos_x)):
             old_y, old_x = entity.position
             self.occupancy[old_y, old_x] = ENTITIES.empty.index
             self.occupancy[pos_y, pos_x] = entity.type_index
+            self.update()
             return True
         else:
             return False

@@ -3,6 +3,8 @@
 """
 from collections import defaultdict, MutableMapping
 
+import blinker
+
 
 class Switchboard(MutableMapping):
     """A collection of signals.
@@ -28,7 +30,11 @@ class Switchboard(MutableMapping):
         return self.dict.__iter__()
 
     def __getitem__(self, key):
-        return self.dict.__getitem__(key)
+        try:
+            return self.dict.__getitem__(key)
+        except KeyError:
+            self.dict.__setitem__(key, blinker.signal(key))
+            return self.dict.__getitem__(key)
 
     def __setitem__(self, key, value):
         return self.dict.__setitem__(key, value)
