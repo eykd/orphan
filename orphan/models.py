@@ -5,87 +5,125 @@ import logging
 logger = logging.getLogger('models')
 import collections
 import numpy
-import enum
+
+import rlfl
 
 from . import signals
+from .terrain import terrain
+from .entities import entities
 
 
-ENTITIES = enum.Enum(
-    'empty',
-    'wall',
-    'player',
-    'adult',
-    'child',
-    'orphan',
-    )
-
-
-class Layer(object):
-    def __init__(self, height, width, dtype):
-        self.map = numpy.zeros((height, width), dtype=dtype)
+Position = collections.namedtuple('Position', 'row col')
+Occupants = collections.namedtuple('Occupants', 'terrain item entity')
 
 
 class Block(collections.Mapping):
     def __init__(self, height, width):
         self.shape = (height, width)
-        self.occupancy = numpy.random.random_integers(0, 1, (height, width))
-        # self.occupancy = numpy.zeros((height, width), dtype=int)
+
+        # RLFL map for storing position flags
+        self.map_num = rlfl.create_map(width, height)
+        self.fill_map(rlfl.CELL_OPEN)
+
+        # Terrain map for features and structures.
+        self.terrain = numpy.random.random_integers(0, 1, (height, width))
+        for row in xrange(height):
+            for col in xrange(width):
+                if self.terrain[row, col] > 0:
+                    self.clear_flag((row, col), rlfl.CELL_OPEN)
+        
+        # Entity map for all mobs.
+        self.entities = collections.defaultdict(lambda: 0)
+
+        # Item map.
+        self.items = collections.defaultdict(lambda: 0)
+
         self.identity = numpy.zeros((height, width), dtype=int)
-        self.entities = collections.defaultdict(lambda: None)
+        self.phone_book = collections.defaultdict(lambda: None)
 
     def __iter__(self):
-        return iter(self.occupancy)
+        return iter(self.entities)
 
     def __len__(self):
-        return len(self.occupancy)
+        return len(self.entities)
 
-    def __getitem__(self, (y, x)):
-        return self.occupancy[y, x]
+    def __getitem__(self, position):
+        return Occupants(terrain = terrain[self.terrain[position]],
+                         entity = self.entities[position],
+                         item = 0
+                         )
+
+    def fill_map(self, flags):
+        return rlfl.fill_map(self.map_num, flags)
+
+    def clear_map(self, flags=None):
+        if flags is None:
+            return rlfl.clear_map(self.map_num)
+        else:
+            return rlfl.clear_map(self.map_num, flags)
+
+    def has_flag(self, position, flags):
+        return rlfl.has_flag(self.map_num, position, flags)
+
+    def set_flag(self, position, flags):
+        return rlfl.set_flag(self.map_num, position, flags)
+
+    def clear_flag(self, position, flags):
+        return rlfl.clear_flag(self.map_num, position, flags)
+
+    def get_flags(self, position):
+        return rlfl.get_flags(self.map_num, position)
 
     def update(self):
         logger.debug('Updating block.')
         signals.block_update.send(self)
         
+    def _place(self, entity, position=None):
+        if position is None:
+            position = entity.position
+        self.entities[position] = entity
+        self.set_flag(position, rlfl.CELL_OCUP)
+        
     def place(self, entity):
-        self.entities[entity.eid] = entity
-        pos_x, pos_y = entity.position
-        self.occupancy[pos_y, pos_x] = entity.type_index
-        self.identity[pos_y, pos_x] = entity.eid
+        self.phone_book[entity.eid] = entity
+        self._place(entity, entity.position)
         self.update()
+
+    def _remove(self, entity):
+        pos_col, pos_row = entity.position
+        self.entities.pop(entity.position)
+        self.clear_flag(entity.position, rlfl.CELL_OCUP)
 
     def remove(self, entity):
-        self.entities.pop(entity.eid)
-        pos_x, pos_y = entity.position
-        self.occupancy[pos_y, pos_x] = ENTITIES.empty.index
-        self.identity[pos_y, pos_x] = 0
+        self.phone_book.pop(entity.eid)
+        self._remove(entity)
         self.update()
 
-    def move(self, entity, (pos_y, pos_x)):
-        if not self.occupied((pos_y, pos_x)):
-            old_y, old_x = entity.position
-            self.occupancy[old_y, old_x] = ENTITIES.empty.index
-            self.occupancy[pos_y, pos_x] = entity.type_index
+    def move(self, entity, position):
+        if self.passable(position):
+            self._remove(entity)
+            self._place(entity, position)
             self.update()
             return True
         else:
             return False
 
-    def occupied(self, (y, x)):
-        return False
-        return self.occupancy[y, x] > 0
+    def occupied(self, position):
+        return self.has_flag(position, rlfl.CELL_OCUP)
 
-    def whoIsAt(self, (y, x)):
-        return self.entities[self.identity[y, x]]
+    def passable(self, position):
+        return self.has_flag(position, rlfl.CELL_OPEN) \
+               and not self.has_flag(position, rlfl.CELL_OCUP)
 
 
 class Entity(object):
-    type_index = None
+    kind = None
     next_id = 1
 
-    def __init__(self, block, (pos_y, pos_x), eid=None):
+    def __init__(self, block, (pos_row, pos_col), eid=None):
         super(Entity, self).__init__()
-        if self.type_index is None:
-            raise NotImplementedError('Entity must define a `type_index`. Subclass and define.')
+        if self.kind is None:
+            raise NotImplementedError('Entity must define a `kind`. Subclass and define.')
         if eid is None:
             self.eid = self.next_id
             Entity.next_id += 1
@@ -93,7 +131,7 @@ class Entity(object):
             self.eid = eid
             Entity.next_id = max(eid, Entity.next_id)
 
-        self.position = [pos_y, pos_x]
+        self.position = Position(pos_row, pos_col)
         self.block = block
         self.block.place(self)
 
@@ -101,34 +139,43 @@ class Entity(object):
         return u'<Entity: %s>' % self
 
     def __unicode__(self):
-        return u'%s %s' % (ENTITIES[self.type_index].key, self.eid)
+        return u'%s %s' % (self.kind.key, self.eid)
 
-    def updatePosition(self, (new_y, new_x)):
-        pos_y, pos_x = self.position
-        if new_y is not None:
-            pos_y = new_y
-        if new_x is not None:
-            pos_x = new_x
+    @property
+    def foreground_slug(self):
+        return self.kind.foreground_slug
 
-        if self.block.move(self, (pos_y, pos_x)):
-            self.position[:] = (pos_y, pos_x)
-            logger.debug('%s now at y/x %s' % (self, self.position))
+    @property
+    def glyph(self):
+        return self.kind.glyph
+
+    def updatePosition(self, (new_row, new_col)):
+        pos_row, pos_col = self.position
+        if new_row is not None:
+            pos_row = new_row
+        if new_col is not None:
+            pos_col = new_col
+        new_pos = Position(pos_row, pos_col)
+
+        if self.block.move(self, new_pos):
+            self.position = new_pos
+            logger.debug('%s now at row/col %s' % (self, self.position))
             return True
         else:
             return False
 
     def move_north(self):
-        return self.updatePosition((self.position[0] - 1, None))
+        return self.updatePosition((self.position.row - 1, None))
 
     def move_south(self):
-        return self.updatePosition((self.position[0] + 1, None))
+        return self.updatePosition((self.position.row + 1, None))
 
     def move_west(self):
-        return self.updatePosition((None, self.position[1] - 1))
+        return self.updatePosition((None, self.position.col - 1))
 
     def move_east(self):
-        return self.updatePosition((None, self.position[1] + 1))
+        return self.updatePosition((None, self.position.col + 1))
 
 
 class Player(Entity):
-    type_index = ENTITIES.player.index
+    kind = entities.player

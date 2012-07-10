@@ -9,41 +9,18 @@ import urwid
 import urwid.raw_display
 
 from . import signals
-from .models import ENTITIES
+from .entities import entities
+from .terrain import terrain
 
-
-palette = [
-    # (name, foreground, background, mono, foreground_high, background_high)
-    ('player', 'light blue', 'light gray', 'standout'),
-    ('wall', 'black', 'light gray'),
-
-    ('body', 'black', 'light gray', 'standout'),
-    ('reverse', 'light gray', 'black'),
-    ('header', 'white', 'dark red', 'bold'),
-    ('important', 'dark blue', 'light gray', ('standout', 'underline')),
-    ('editfc', 'white', 'dark blue', 'bold'),
-    ('editbx', 'light gray', 'dark blue'),
-    ('editcp', 'black', 'light gray', 'standout'),
-    ('bright', 'dark gray', 'light gray', ('bold', 'standout')),
-    ('buttn', 'black', 'dark cyan'),
-    ('buttnf', 'white', 'dark blue', 'bold'),
-    ]
+from . import palette
 
 
 class PlayField(urwid.BoxWidget):
-    # Use http://www.mandarintools.com/chardict_u8.html for inspiration.
-    char_map = defaultdict(lambda: u'??', {
-        ENTITIES.empty.index: u'  ',
-        ENTITIES.wall.index: ('wall', u'##'),
-        ENTITIES.player.index: ('player', u'子'),  # 'Offspring'. Or 孤 'Orphan'?
-    })
-
     def __init__(self, block, focus):
         super(PlayField, self).__init__()
         self.block = block
         self.focus = focus
         self.focus = focus
-        logger.debug('Connecting to block update...')
 
         self.on_block_update = lambda s: self._invalidate()
         signals.block_update.connect(self.on_block_update,
@@ -65,19 +42,29 @@ class PlayField(urwid.BoxWidget):
             max(center_col - (columns // 4), 0),
             max_col - columns)
 
-        logger.debug('Camera: center c/r (%s, %s), origin c/r (%s, %s)',
-            center_col, center_row, origin_row, origin_col)
+        # logger.debug('Camera: center c/r (%s, %s), origin c/r (%s, %s)',
+        #     center_col, center_row, origin_row, origin_col)
 
         # Render the camera's view
         block = self.block
-        char_map = self.char_map
         Text = urwid.Text
         rendered_rows = []
         for row in xrange(origin_row, (origin_row + rows)):
             row_text = []
             # Displayed columns are double-wide
             for col in xrange(origin_col, (origin_col + (columns // 2))):
-                row_text.append(char_map[block[row, col]])
+                at = block[row, col]
+                if at.entity:
+                    text = (palette.as_name(at.entity.foreground_slug,
+                                            at.terrain.background_slug),
+                            at.entity.glyph
+                            )
+                else:
+                    text = (palette.as_name(at.terrain.foreground_slug,
+                                            at.terrain.background_slug),
+                            at.terrain.glyph
+                            )
+                row_text.append(text)
             rendered_rows.append(
                 (Text(row_text).render((columns,)), None, None)
                 )

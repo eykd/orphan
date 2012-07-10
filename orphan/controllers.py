@@ -11,6 +11,7 @@ import urwid
 from . import views
 from . import signals
 from . import agents
+from . import palette
 
 
 class Scene(agents.Agent):
@@ -89,7 +90,7 @@ class Director(agents.Agent):
                 raise urwid.ExitMainLoop()
 
         self.loop = urwid.MainLoop(
-            self.scene.main_frame, views.palette, screen,
+            self.scene.main_frame, list(palette.entries), screen,
             unhandled_input=unhandled)
 
         self.iterator = iter(self)
