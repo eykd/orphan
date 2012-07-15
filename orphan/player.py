@@ -28,7 +28,6 @@ class Player(object):
         def dispatch_key(sender, key=None):
             action = self.command_map[key]
             if action is not None:
-                logger.debug('Dispatching action: %s', action)
                 getattr(self.player, action)()
 
         self._dispatch_key = dispatch_key

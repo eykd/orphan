@@ -3,6 +3,9 @@
 """
 from . import enum
 
+# CJK unified ideographs
+cjk = [unichr(n) for n in xrange(0x4e00, 0x9fc2)]
+
 
 class entities(object):
     __metaclass__ = enum.Enum

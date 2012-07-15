@@ -54,20 +54,38 @@ class PlayField(urwid.BoxWidget):
             # Displayed columns are double-wide
             for col in xrange(origin_col, (origin_col + (columns // 2))):
                 at = block[row, col]
-                if at.entity:
-                    text = (palette.as_name(at.entity.foreground_slug,
-                                            at.terrain.background_slug),
-                            at.entity.glyph
+                entity = at.entity
+                terra = at.terrain
+                height = at.height
+                if entity:
+                    text = (palette.as_name(entity.foreground_slug(at)
+                                            if callable(entity.foreground_slug)
+                                            else entity.foreground_slug,
+                    
+                                            terra.background_slug(at)
+                                            if callable(terra.background_slug)
+                                            else terra.background_slug),
+                                            
+                            entity.glyph(at) if callable(entity.glyph) else entity.glyph
                             )
                 else:
-                    text = (palette.as_name(at.terrain.foreground_slug,
-                                            at.terrain.background_slug),
-                            at.terrain.glyph
+                    text = (palette.as_name(terra.foreground_slug(at)
+                                            if callable(terra.foreground_slug)
+                                            else terra.foreground_slug,
+                    
+                                            terra.background_slug(at)
+                                            if callable(terra.background_slug)
+                                            else terra.background_slug),
+                                            
+                            terra.glyph(at) if callable(terra.glyph) else terra.glyph
                             )
                 row_text.append(text)
             rendered_rows.append(
                 (Text(row_text).render((columns,)), None, None)
                 )
+        rendered_rows.pop()
+        status_text = '%s Terrain: %s' % (block.phone_book[1].position, terrain[block.terrain[row, col]])
+        rendered_rows.append((Text(('important', status_text)).render((columns,)), None, None))
         canvas = urwid.CanvasCombine(rendered_rows)
         return canvas
 

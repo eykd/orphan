@@ -5,30 +5,59 @@ import logging
 logger = logging.getLogger('models')
 import collections
 import numpy
+import random
 
 import rlfl
+import owyl
 
+from . import agents
 from . import signals
-from .terrain import terrain
+
 from .entities import entities
+from .terrain import terrain
+from . import heightmap
+from . import river
 
 
 Position = collections.namedtuple('Position', 'row col')
-Occupants = collections.namedtuple('Occupants', 'terrain item entity')
+Occupants = collections.namedtuple('Occupants', 'block position height terrain item entity')
+
+
+class LandAgent(agents.Agent):
+    def __init__(self, block):
+        super(LandAgent, self).__init__()
+        self.block = block
+
+        self.schedule_visit(
+            owyl.sequence(
+                heightmap.generate_heightmap(heightmap=block.heightmap),
+                owyl.wrap(self.addChild, river.RiverGod(block)),
+                )
+            )
 
 
 class Block(collections.Mapping):
-    def __init__(self, height, width):
-        self.shape = (height, width)
+    def __init__(self, rows, columns, seed=None):
+        super(Block, self).__init__()
+        shape = self.shape = (rows, columns)
+
+        self.random = random.Random(seed)
 
         # RLFL map for storing position flags
-        self.map_num = rlfl.create_map(width, height)
+        self.map_num = rlfl.create_map(columns, rows)
         self.fill_map(rlfl.CELL_OPEN)
 
+        # Heightmap, which our land agent will generate w/ fbm.
+        self.heightmap = numpy.zeros(shape, dtype=int)
+
         # Terrain map for features and structures.
-        self.terrain = numpy.random.random_integers(0, 1, (height, width))
-        for row in xrange(height):
-            for col in xrange(width):
+        # self.terrain = numpy.random.random_integers(0, 1, (rows, columns))
+        self.terrain = numpy.zeros(shape, dtype=int)
+        
+        # Loop through every cell and populate it.
+        for row in xrange(rows):
+            for col in xrange(columns):
+                # Set flags
                 if self.terrain[row, col] > 0:
                     self.clear_flag((row, col), rlfl.CELL_OPEN)
         
@@ -38,8 +67,9 @@ class Block(collections.Mapping):
         # Item map.
         self.items = collections.defaultdict(lambda: 0)
 
-        self.identity = numpy.zeros((height, width), dtype=int)
         self.phone_book = collections.defaultdict(lambda: None)
+
+        self.land_agent = LandAgent(self)
 
     def __iter__(self):
         return iter(self.entities)
@@ -48,7 +78,10 @@ class Block(collections.Mapping):
         return len(self.entities)
 
     def __getitem__(self, position):
-        return Occupants(terrain = terrain[self.terrain[position]],
+        return Occupants(block = self,
+                         position = position,
+                         height = self.heightmap[position],
+                         terrain = terrain[self.terrain[position]],
                          entity = self.entities[position],
                          item = 0
                          )
@@ -75,7 +108,7 @@ class Block(collections.Mapping):
         return rlfl.get_flags(self.map_num, position)
 
     def update(self):
-        logger.debug('Updating block.')
+        # logger.debug('Updating block.')
         signals.block_update.send(self)
         
     def _place(self, entity, position=None):
@@ -159,7 +192,7 @@ class Entity(object):
 
         if self.block.move(self, new_pos):
             self.position = new_pos
-            logger.debug('%s now at row/col %s' % (self, self.position))
+            # logger.debug('%s now at row/col %s' % (self, self.position))
             return True
         else:
             return False

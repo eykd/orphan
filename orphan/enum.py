@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """orphan.enum -- enumerated types, with super-powers!
 """
+import random
 from . import palette
 
 
@@ -21,10 +22,22 @@ class Enum(type):
             setattr(cls.__class__, cls.__name__, cls)
             cls.key = cls.__name__
 
-            if hasattr(cls, 'foreground'):
+            if hasattr(cls, 'foregrounds'):
+                cls.foreground_slugs = []
+                for fg in cls.foregrounds:
+                    cls.foreground_slugs.append(palette.entries.registerForeground(fg))
+                if not hasattr(cls, 'foreground_slug'):
+                    cls.foreground_slug = staticmethod(lambda x: random.choice(cls.foreground_slugs))
+            elif hasattr(cls, 'foreground'):
                 cls.foreground_slug = palette.entries.registerForeground(cls.foreground)
 
-            if hasattr(cls, 'background'):
+            if hasattr(cls, 'backgrounds'):
+                cls.background_slugs = []
+                for bg in cls.backgrounds:
+                    cls.background_slugs.append(palette.entries.registerBackground(bg))
+                if not hasattr(cls, 'background_slug'):
+                    cls.background_slug = staticmethod(lambda x: random.choice(cls.background_slugs))
+            elif hasattr(cls, 'background'):
                 cls.background_slug = palette.entries.registerBackground(cls.background)
 
     def __iter__(cls):

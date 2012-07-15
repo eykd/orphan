@@ -53,6 +53,7 @@ class Director(agents.Agent):
         # always true except for first scene in the app
         if self.scene is not None:
             self.scene.on_exit()
+            self.scene.stop()
 
         old = self.scene
         self.scene = scene
@@ -60,6 +61,8 @@ class Director(agents.Agent):
         # always true except when terminating the app
         if self.scene is not None:
             scene.on_enter()
+            scene.start()
+            self.addChild(scene)
 
         return old
 
@@ -69,7 +72,7 @@ class Director(agents.Agent):
         except StopIteration:
             return
         else:
-            self.loop.set_alarm_in(0.01, self.schedule_agent)
+            self.loop.set_alarm_in(0.001, self.schedule_agent)
 
     def run(self, initial_scene):
         logger.info('Director starting up.')
@@ -77,11 +80,11 @@ class Director(agents.Agent):
         self._set_scene()
 
         screen = self.screen = urwid.raw_display.Screen()
-        screen.set_terminal_properties(colors=256)
+        # screen.set_terminal_properties(colors=256)
         urwid.set_encoding("UTF-8")
 
         def unhandled(key):
-            logger.debug('Received key sequence: %s', key)
+            # logger.debug('Received key sequence: %s', key)
             signals.keyboard.send(key=key)
 
             # FIXME: This shouldn't be hard-coded here. Rely on scene popping.
@@ -94,5 +97,5 @@ class Director(agents.Agent):
             unhandled_input=unhandled)
 
         self.iterator = iter(self)
-        self.loop.set_alarm_in(0.01, self.schedule_agent)
+        self.loop.set_alarm_in(0, self.schedule_agent)
         self.loop.run()
