@@ -52,14 +52,14 @@ class RiverGod(agents.Agent):
 
         base = self.block.random.randint(0, 1000)
         max_row, max_col = self.block.shape
-        water = terrain.water.index
+        water = terrain.water
         terrain_array = self.block.terrain
 
         i = 0
         while queue:
             (a_row, a_col), (b_row, b_col), scale = queue.pop()
-            self.draw(terrain_array, a_row, a_col, base, water)
-            self.draw(terrain_array, b_row, b_col, base, water)
+            self.draw(a_row, a_col, base, water)
+            self.draw(b_row, b_col, base, water)
             cols.add(a_col)
             cols.add(b_col)
 
@@ -85,17 +85,14 @@ class RiverGod(agents.Agent):
         logger.debug('Drew river!')
         yield True
 
-    def draw(self, terrain_array, row, col, noise_base, fill):
+    def draw(self, row, col, noise_base, fill):
         mod_up = int(round(5 * pnoise1(col * 0.01, base=noise_base)))
         mod_down = int(round(5 * pnoise1(col * 0.01, base=-noise_base)))
         width_2 = 20
         top_row = row - (width_2 + mod_up)
         bot_row = row + (width_2 + mod_down)
         try:
-            view = terrain_array[top_row : bot_row + 1, col : col + 1]
+            self.block[top_row : bot_row + 1, col : col + 1] = fill
         except IndexError:
             logger.exception('Bad terrain index (shape %s): %s : %s, %s : %s', self.block.terrain.shape, top_row, bot_row, col, col)
             raise
-
-        view.fill(fill)
-

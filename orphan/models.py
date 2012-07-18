@@ -45,7 +45,7 @@ class Block(collections.Mapping):
 
         # RLFL map for storing position flags
         self.map_num = rlfl.create_map(columns, rows)
-        self.fill_map(rlfl.CELL_OPEN)
+        self.fill_map(terrain.empty.flags)
 
         # Heightmap, which our land agent will generate w/ fbm.
         self.heightmap = numpy.zeros(shape, dtype=int)
@@ -78,13 +78,49 @@ class Block(collections.Mapping):
         return len(self.entities)
 
     def __getitem__(self, position):
+        """Return the various Occupants of the given cell.
+        """
         return Occupants(block = self,
                          position = position,
                          height = self.heightmap[position],
                          terrain = terrain[self.terrain[position]],
                          entity = self.entities[position],
-                         item = 0
+                         items = 0
                          )
+
+    def __setitem__(self, position, terraindef):
+        """Set the terrain for a given cell.
+        """
+        tmap = self.terrain
+        view = tmap[position]
+        view.fill(terraindef.index)
+        rows, cols = position
+
+        if terraindef.flags is not None or terraindef.clear_flags is not None:
+            rows = list(self.slice_to_xrange(rows, len(tmap)))
+            cols = list(self.slice_to_xrange(cols, len(tmap[0])))
+            flags = terraindef.flags
+            clear = terraindef.clear_flags
+            set_flag = self.set_flag
+            clear_flag = self.clear_flag
+
+            for row in rows:
+                for col in cols:
+                    shape = (row, col)
+                    if flags is not None:
+                        set_flag(shape, flags)
+                    if clear is not None:
+                        clear_flag(shape, clear)
+                
+    def slice_to_xrange(self, n, maxn):
+        if isinstance(n, slice):
+            return xrange(
+                0 if n.start is None else int(n.start),
+                maxn if n.stop is None else int(n.stop),
+                1 if n.step is None else int(n.step)
+                )
+        else:
+            return xrange(n, n+1)
 
     def fill_map(self, flags):
         return rlfl.fill_map(self.map_num, flags)
@@ -145,8 +181,9 @@ class Block(collections.Mapping):
         return self.has_flag(position, rlfl.CELL_OCUP)
 
     def passable(self, position):
-        return self.has_flag(position, rlfl.CELL_OPEN) \
-               and not self.has_flag(position, rlfl.CELL_OCUP)
+        # logger.info('P:%s\nF:%s', position, self.get_flags(position))
+        return self.has_flag(position, rlfl.CELL_WALK) \
+               and not self.has_flag(position, rlfl.CELL_OCUP | rlfl.CELL_PERM)
 
 
 class Entity(object):
