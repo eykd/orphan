@@ -4,9 +4,9 @@
 import logging
 logger = logging.getLogger('models')
 import collections
-import numpy
 import random
 
+import numpy
 import rlfl
 import owyl
 
@@ -20,7 +20,7 @@ from . import river
 
 
 Position = collections.namedtuple('Position', 'row col')
-Occupants = collections.namedtuple('Occupants', 'block position height terrain item entity')
+Occupants = collections.namedtuple('Occupants', 'block position height terrain items entity')
 
 
 class LandAgent(agents.Agent):
@@ -36,16 +36,48 @@ class LandAgent(agents.Agent):
             )
 
 
+class ScentLayer(agents.Agent):
+    def __init__(self, name, block):
+        super(ScentLayer, self).__init__()
+        self.name = name
+        self.block = block
+        block.scents[name] = self
+        shape = self.block.shape
+        self.map = numpy.zeros(shape, dtype=numpy.float16)
+        self.buffer = numpy.zeros(shape, dtype=numpy.float16)
+
+    def __getitem__(self, key):
+        return self.map[key]
+
+    def __setitem__(self, key, value):
+        self.map[key] = value
+
+    def update(self):
+        """Update the scent layer.
+        """
+        scale = numpy.float16(0.25)
+        buf = self.buffer
+        cur = self.map
+
+        # MAGIC: Lickety-split C math! I don't know how this works, but I like it!
+        # http://www.timteatro.net/2010/10/29/performance-python-solving-the-2d-diffusion-equation-with-numpy/
+        buf[1:-1, 1:-1] = cur[1:-1, 1:-1] + scale*(
+            (cur[2:, 1:-1] - 2*cur[1:-1, 1:-1] + cur[:-2, 1:-1]) +
+            (cur[1:-1, 2:] - 2*cur[1:-1, 1:-1] + cur[1:-1, :-2]))
+
+        self.map, self.buffer = self.buffer, self.map
+
+
 class Block(collections.Mapping):
     def __init__(self, rows, columns, seed=None):
         super(Block, self).__init__()
         shape = self.shape = (rows, columns)
 
+        self.scents = {}
         self.random = random.Random(seed)
 
         # RLFL map for storing position flags
         self.map_num = rlfl.create_map(columns, rows)
-        self.fill_map(terrain.empty.flags)
 
         # Heightmap, which our land agent will generate w/ fbm.
         self.heightmap = numpy.zeros(shape, dtype=int)
@@ -53,13 +85,8 @@ class Block(collections.Mapping):
         # Terrain map for features and structures.
         # self.terrain = numpy.random.random_integers(0, 1, (rows, columns))
         self.terrain = numpy.zeros(shape, dtype=int)
-        
-        # Loop through every cell and populate it.
-        for row in xrange(rows):
-            for col in xrange(columns):
-                # Set flags
-                if self.terrain[row, col] > 0:
-                    self.clear_flag((row, col), rlfl.CELL_OPEN)
+
+        self[:, :] = terrain.dirt
         
         # Entity map for all mobs.
         self.entities = collections.defaultdict(lambda: 0)

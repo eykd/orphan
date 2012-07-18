@@ -19,7 +19,7 @@ class empty(entities):
 
 class player(entities):
     glyph = u'子'  # 'Offspring'. Or 孤 'Orphan'?
-    foreground = 'light blue'
+    foreground = 'yellow'
 
 
 class adult(entities):
