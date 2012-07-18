@@ -80,7 +80,7 @@ class Director(agents.Agent):
         self._set_scene()
 
         screen = self.screen = urwid.raw_display.Screen()
-        # screen.set_terminal_properties(colors=256)
+        screen.set_terminal_properties(colors=256)
         urwid.set_encoding("UTF-8")
 
         def unhandled(key):
