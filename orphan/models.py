@@ -12,6 +12,7 @@ import owyl
 
 from . import agents
 from . import signals
+from . import palette
 
 from .entities import entities
 from .terrain import terrain
@@ -245,6 +246,19 @@ class Entity(object):
     @property
     def glyph(self):
         return self.kind.glyph
+
+    def text(self, at):
+        terra = at.terrain
+        return (palette.as_name(self.foreground_slug(at)
+                                if callable(self.foreground_slug)
+                                else self.foreground_slug,
+
+                                terra.background_slug(at)
+                                if callable(terra.background_slug)
+                                else terra.background_slug),
+
+                self.glyph(at) if callable(self.glyph) else self.glyph
+                )
 
     def updatePosition(self, (new_row, new_col)):
         pos_row, pos_col = self.position

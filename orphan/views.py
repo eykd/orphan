@@ -54,32 +54,12 @@ class PlayField(urwid.BoxWidget):
             # Displayed columns are double-wide
             for col in xrange(origin_col, (origin_col + (columns // 2))):
                 at = block[row, col]
-                entity = at.entity
-                terra = at.terrain
-                height = at.height
-                if entity:
-                    text = (palette.as_name(entity.foreground_slug(at)
-                                            if callable(entity.foreground_slug)
-                                            else entity.foreground_slug,
-                    
-                                            terra.background_slug(at)
-                                            if callable(terra.background_slug)
-                                            else terra.background_slug),
-                                            
-                            entity.glyph(at) if callable(entity.glyph) else entity.glyph
-                            )
+
+                if at.entity:
+                    row_text.append(at.entity.text(at))
                 else:
-                    text = (palette.as_name(terra.foreground_slug(at)
-                                            if callable(terra.foreground_slug)
-                                            else terra.foreground_slug,
-                    
-                                            terra.background_slug(at)
-                                            if callable(terra.background_slug)
-                                            else terra.background_slug),
-                                            
-                            terra.glyph(at) if callable(terra.glyph) else terra.glyph
-                            )
-                row_text.append(text)
+                    row_text.append(at.terrain.text(at))
+
             rendered_rows.append(
                 (Text(row_text).render((columns,)), None, None)
                 )

@@ -9,6 +9,8 @@ from . import enum
 
 from . import util
 
+from . import palette
+
 
 class terrain(object):
     __metaclass__ = enum.Enum
@@ -16,30 +18,38 @@ class terrain(object):
     flags = None
     clear_flags = None
 
-    background_slug = 'black'
-    foreground_slug = 'light gray'
+    background = 'black'
+    foreground = 'light gray'
+
+    @classmethod
+    def text(cls, at):
+        return (palette.as_name(cls.foreground_slug(at)
+                                if callable(cls.foreground_slug)
+                                else cls.foreground_slug,
+
+                                cls.background_slug(at)
+                                if callable(cls.background_slug)
+                                else cls.background_slug),
+
+                cls.glyph(at) if callable(cls.glyph) else cls.glyph
+                )
 
 
 class empty(terrain):
     glyph = u'  '
-    foreground_slug = 'dark red'
-    backgrounds = ['g%s' % x for x in xrange(100)]
     flags = rlfl.CELL_OPEN | rlfl.CELL_WALK
-
-    @classmethod
-    def background_slug(cls, at):
-        return cls.backgrounds[at.height]
 
 
 class dirt(terrain):
-    glyphs = [u'%s%s' % i for i in it.permutations([u'∴', u'∵', u'∶', u'∷'], 2)]
+    glyphs = [u'%s%s' % i for i in it.permutations([u'∴', u'∵', u'∶', u'∷', u' ', u' '], 2)]
     backgrounds = ['g%s' % x for x in xrange(100)]
+    foreground = 'brown'
     flags = rlfl.CELL_OPEN | rlfl.CELL_WALK
     cache = {}
     
     @classmethod
     def background_slug(cls, at):
-        return cls.backgrounds[at.height]
+        return cls.background_slugs[at.height]
 
     @classmethod
     def glyph(cls, at):
@@ -65,8 +75,8 @@ class wall(terrain):
 
 class water(terrain):
     glyphs = [u'~^', u'~~', u'~~', u'~^']
-    foreground_slug = 'light cyan'
-    background_slug = 'dark blue'
+    foreground = 'light cyan'
+    background = 'dark blue'
 
     clear_flags = rlfl.CELL_WALK
 
