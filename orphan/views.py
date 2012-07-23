@@ -7,6 +7,7 @@ logger = logging.getLogger('views')
 from collections import defaultdict
 import urwid
 import urwid.raw_display
+from urwid.util import decompose_tagmarkup
 
 from . import signals
 from .entities import entities
@@ -63,11 +64,32 @@ class PlayField(urwid.BoxWidget):
             rendered_rows.append(
                 (Text(row_text).render((columns,)), None, None)
                 )
-        rendered_rows.pop()
-        status_text = '%s Terrain: %s' % (block.phone_book[1].position, terrain[block.terrain[row, col]])
-        rendered_rows.append((Text(('important', status_text)).render((columns,)), None, None))
-        canvas = urwid.CanvasCombine(rendered_rows)
-        return canvas
+        return urwid.CanvasCombine(rendered_rows)
+
+
+class Status(urwid.FlowWidget):
+    def __init__(self, block):
+        self.block = block
+
+        self.on_block_update = lambda s: self._invalidate()
+        signals.block_update.connect(self.on_block_update,
+                                     sender=self.block)
+
+        super(Status, self).__init__()
+
+    def selectable(self):
+        return False
+
+    def rows(self, size, focus=False):
+        return 1
+
+    def render(self, size, focus=False):
+        columns, rows = size
+        block = self.block
+        position = block.phone_book[1].position
+        scents = u', '.join(u'%s: %s' % (n, m[position]) for n, m in block.scent_maps.iteritems())
+        status_text = u'%s, on %s -- %s' % (position, terrain[block.terrain[position]], scents)
+        return urwid.Text(('important', status_text[:columns])).render((columns,))
 
 
 class Log(urwid.ListBox):
@@ -93,9 +115,12 @@ class MainFrame(urwid.Frame):
         log = Log()
         logging.getLogger().addHandler(logging.StreamHandler(log))
 
-        body = urwid.Columns([
-            urwid.LineBox(main_widget),
-            ('fixed', 30, log),
+        body = urwid.Pile([
+            urwid.Columns([
+                urwid.LineBox(main_widget),
+                ('fixed', 30, log),
+                ]),
+            ('fixed', 1, Status(main_widget.block)),
             ])
         super(MainFrame, self).__init__(
             urwid.AttrWrap(body, 'body'),

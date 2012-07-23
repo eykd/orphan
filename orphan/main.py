@@ -4,6 +4,7 @@
 """
 import logging
 logging.basicConfig(filename='debug.log', level=logging.DEBUG)
+logging.captureWarnings(True)
 
 from . import controllers
 from . import scenes
@@ -11,7 +12,7 @@ from . import scenes
 
 def main():
     director = controllers.Director()
-    director.run(scenes.Game())
+    director.run(scenes.WorldGen())
 
 
 if '__main__' == __name__:

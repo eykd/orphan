@@ -53,7 +53,6 @@ class RiverGod(agents.Agent):
         base = self.block.random.randint(0, 1000)
         max_row, max_col = self.block.shape
         water = terrain.water
-        terrain_array = self.block.terrain
 
         i = 0
         while queue:

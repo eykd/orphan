@@ -16,36 +16,67 @@ from . import palette
 
 from .entities import entities
 from .terrain import terrain
-from . import heightmap
+# from . import heightmap
 from . import river
 
 
 Position = collections.namedtuple('Position', 'row col')
-Occupants = collections.namedtuple('Occupants', 'block position height terrain items entity')
+Occupants = collections.namedtuple('Occupants', 'block position terrain items entity')
 
 
 class LandAgent(agents.Agent):
     def __init__(self, block):
         super(LandAgent, self).__init__()
         self.block = block
-
+        self.addChild(river.RiverGod(block))
         self.schedule_visit(
-            owyl.sequence(
-                heightmap.generate_heightmap(heightmap=block.heightmap),
-                owyl.wrap(self.addChild, river.RiverGod(block)),
+            owyl.repeatAlways(
+                owyl.limit(
+                    self.update_scent_values(),
+                    limit_period = 0.1
+                    )
                 )
             )
 
+    @owyl.taskmethod
+    def update_scent_values(self, **kwargs):
+        scent_maps = self.block.scent_maps
+        for name, scents in self.block.scents.iteritems():
+            for position, value in scents:
+                scent_maps[name][position] = value
+
+            yield None
+
+        yield True
+        
 
 class ScentLayer(agents.Agent):
-    def __init__(self, name, block):
+    def __init__(self, name, shape, scale):
         super(ScentLayer, self).__init__()
         self.name = name
-        self.block = block
-        block.scents[name] = self
-        shape = self.block.shape
         self.map = numpy.zeros(shape, dtype=numpy.float16)
+        self.scale = numpy.float16(scale)
+        rows, cols = shape
+        dx = self.dx = 1.0 / cols
+        dy = self.dy = 1.0 / rows
+        dx2 = self.dx2 = dx ** 2
+        dy2 = self.dy2 = dy ** 2
+        dt = self.dt = dx2 *dy2 / (2 * scale * (dx2 + dy2))
+
+        # Save these for later use in the diffusion equation...
+        self.tscale = dt * scale
+        self._1_dx2 = 1.0 / dx2
+        self._1_dy2 = 1.0 / dy2
+        
         self.buffer = numpy.zeros(shape, dtype=numpy.float16)
+        self.schedule_visit(
+            owyl.repeatAlways(
+                owyl.limit(
+                    self.update_scents(),
+                    limit_period = 0.1
+                    )
+                )
+            )
 
     def __getitem__(self, key):
         return self.map[key]
@@ -53,20 +84,24 @@ class ScentLayer(agents.Agent):
     def __setitem__(self, key, value):
         self.map[key] = value
 
-    def update(self):
+    @owyl.taskmethod
+    def update_scents(self, **kwargs):
         """Update the scent layer.
         """
-        scale = numpy.float16(0.25)
         buf = self.buffer
         cur = self.map
 
         # MAGIC: Lickety-split C math! I don't know how this works, but I like it!
         # http://www.timteatro.net/2010/10/29/performance-python-solving-the-2d-diffusion-equation-with-numpy/
-        buf[1:-1, 1:-1] = cur[1:-1, 1:-1] + scale*(
-            (cur[2:, 1:-1] - 2*cur[1:-1, 1:-1] + cur[:-2, 1:-1]) +
-            (cur[1:-1, 2:] - 2*cur[1:-1, 1:-1] + cur[1:-1, :-2]))
+        buf[1:-1, 1:-1] = cur[1:-1, 1:-1] + self.tscale*(
+            (cur[2:, 1:-1] - 2*cur[1:-1, 1:-1] + cur[:-2, 1:-1]) * self._1_dx2 +
+            (cur[1:-1, 2:] - 2*cur[1:-1, 1:-1] + cur[1:-1, :-2]) * self._1_dy2
+            ) 
 
+        # Swap the map and the buffer
         self.map, self.buffer = self.buffer, self.map
+
+        yield True
 
 
 class Block(collections.Mapping):
@@ -74,14 +109,12 @@ class Block(collections.Mapping):
         super(Block, self).__init__()
         shape = self.shape = (rows, columns)
 
-        self.scents = {}
+        self.scent_maps = {}
+        self.scents = collections.defaultdict(collections.deque)
         self.random = random.Random(seed)
 
         # RLFL map for storing position flags
         self.map_num = rlfl.create_map(columns, rows)
-
-        # Heightmap, which our land agent will generate w/ fbm.
-        self.heightmap = numpy.zeros(shape, dtype=int)
 
         # Terrain map for features and structures.
         # self.terrain = numpy.random.random_integers(0, 1, (rows, columns))
@@ -99,6 +132,8 @@ class Block(collections.Mapping):
 
         self.land_agent = LandAgent(self)
 
+        self.addScentLayer('water', 0.95)
+
     def __iter__(self):
         return iter(self.entities)
 
@@ -110,7 +145,6 @@ class Block(collections.Mapping):
         """
         return Occupants(block = self,
                          position = position,
-                         height = self.heightmap[position],
                          terrain = terrain[self.terrain[position]],
                          entity = self.entities[position],
                          items = 0
@@ -120,10 +154,15 @@ class Block(collections.Mapping):
         """Set the terrain for a given cell.
         """
         tmap = self.terrain
-        view = tmap[position]
-        view.fill(terraindef.index)
+        tmap[position].fill(terraindef.index)
         rows, cols = position
 
+        # Set up scents
+        scents = self.scents
+        for name, value in terraindef.scents:
+            scents[name].append((position, value))
+
+        # Set terrain flags.
         if terraindef.flags is not None or terraindef.clear_flags is not None:
             rows = list(self.slice_to_xrange(rows, len(tmap)))
             cols = list(self.slice_to_xrange(cols, len(tmap[0])))
@@ -139,7 +178,7 @@ class Block(collections.Mapping):
                         set_flag(shape, flags)
                     if clear is not None:
                         clear_flag(shape, clear)
-                
+
     def slice_to_xrange(self, n, maxn):
         if isinstance(n, slice):
             return xrange(
@@ -149,6 +188,11 @@ class Block(collections.Mapping):
                 )
         else:
             return xrange(n, n+1)
+
+    def addScentLayer(self, name, scale=0.5):
+        layer = self.scent_maps[name] = ScentLayer(name, self.shape, scale)
+        self.land_agent.addChild(layer)
+        return layer
 
     def fill_map(self, flags):
         return rlfl.fill_map(self.map_num, flags)
@@ -172,7 +216,6 @@ class Block(collections.Mapping):
         return rlfl.get_flags(self.map_num, position)
 
     def update(self):
-        # logger.debug('Updating block.')
         signals.block_update.send(self)
         
     def _place(self, entity, position=None):

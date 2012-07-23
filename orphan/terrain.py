@@ -21,6 +21,8 @@ class terrain(object):
     background = 'black'
     foreground = 'light gray'
 
+    scents = ()
+
     @classmethod
     def text(cls, at):
         return (palette.as_name(cls.foreground_slug(at)
@@ -42,19 +44,16 @@ class empty(terrain):
 
 class dirt(terrain):
     glyphs = [u'%s%s' % i for i in it.permutations([u'∴', u'∵', u'∶', u'∷', u' ', u' '], 2)]
-    backgrounds = ['g%s' % x for x in xrange(100)]
+    background = 'black'
     foreground = 'brown'
     flags = rlfl.CELL_OPEN | rlfl.CELL_WALK
-    cache = {}
+    glyph_cache = {}
+    bg_cache = {}
     
-    @classmethod
-    def background_slug(cls, at):
-        return cls.background_slugs[at.height]
-
     @classmethod
     def glyph(cls, at):
         try:
-            return cls.cache[at.position]
+            return cls.glyph_cache[at.position]
         except KeyError:
             row, col = at.position
             col_prime = int(
@@ -64,7 +63,7 @@ class dirt(terrain):
                         ) * (len(cls.glyphs) - 1)
                     )
                 )
-            g = cls.cache[at.position] = cls.glyphs[col_prime]
+            g = cls.glyph_cache[at.position] = cls.glyphs[col_prime]
             return g
 
 
@@ -80,6 +79,10 @@ class water(terrain):
 
     clear_flags = rlfl.CELL_WALK
 
+    scents = (
+        ('water', 1000),
+        )
+
     @classmethod
     def glyph(cls, at):
         row, col = at.position
@@ -91,3 +94,49 @@ class water(terrain):
                 )
             )
         return cls.glyphs[col_prime]
+
+
+class road(terrain):
+    glyphs = [u'%s%s' % i for i in it.permutations([u'∴', u'∵', u'∷'], 2)]
+    
+    foreground = 'yellow'
+    backcground = 'brown'
+
+    @classmethod
+    def glyph(cls, at):
+        try:
+            return cls.glyph_cache[at.position]
+        except KeyError:
+            row, col = at.position
+            col_prime = int(
+                round(
+                    abs(
+                        (pnoise2(row*0.1, col*0.1)) % 1
+                        ) * (len(cls.glyphs) - 1)
+                    )
+                )
+            g = cls.glyph_cache[at.position] = cls.glyphs[col_prime]
+            return g
+
+
+class bridge(terrain):
+    glyphs = [u'%s%s' % i for i in it.permutations([u'∴', u'∵', u'∷'], 2)]
+    
+    foreground = 'brown'
+    backcground = 'light gray'
+
+    @classmethod
+    def glyph(cls, at):
+        try:
+            return cls.glyph_cache[at.position]
+        except KeyError:
+            row, col = at.position
+            col_prime = int(
+                round(
+                    abs(
+                        (pnoise2(row*0.1, col*0.1)) % 1
+                        ) * (len(cls.glyphs) - 1)
+                    )
+                )
+            g = cls.glyph_cache[at.position] = cls.glyphs[col_prime]
+            return g

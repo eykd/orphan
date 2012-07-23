@@ -8,7 +8,7 @@ from . import controllers
 from . import player
 
 
-class Game(controllers.Scene):
+class WorldGen(controllers.Scene):
     def on_enter(self):
         self.block = models.Block(1000, 1000)
         self.addChild(self.block.land_agent)
