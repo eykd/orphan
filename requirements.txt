@@ -5,3 +5,4 @@ blinker
 -e git+git@github.com:eykd/owyl.git#egg=owyl
 appdirs
 path.py
+configobj
